@@ -3,8 +3,9 @@ from telebot import types
 from datetime import datetime
 import uuid
 import math
+import os
 
-API_TOKEN = '8110459054:AAE-twMstc5mDLp7jeXSjtYJz6tX48Jaiik'  # ВАШ API ТОКЕН
+API_TOKEN = os.getenv('API_TOKEN')  # ВАШ API ТОКЕН
 bot = telebot.TeleBot(API_TOKEN)
 admin_ids = [331697484]  # ID Администраторов
 
