@@ -216,7 +216,7 @@ def send_welcome(message):
         bot.send_message(chat_id,
                          "Бот осуществляет расчет стоимости выставочного стенда на основании проектов-аналогов 2025 года. Смета является приблизительной, итоговая стоимость должна рассчитываться специалистом на основании утвержденного дизайна.")
         bot.send_message(chat_id,
-                         "Для продолжения использования бота вы должны дать согласие на обработку ваших персональных данных, включая сбор, хранение и использование информации, необходимой для предоставления услуг и улучшения пользовательского опыта, в соответствии с нашей политикой конфиденциальности: https://reklaman.tilda.ws/privacy ")
+                         "Для продолжения использования бота вы должны дать согласие на обработку ваших персональных данных, включая сбор, хранение и использование информации, необходимой для предоставления услуг и улучшения пользовательского опыта, в соответствии с нашей политикой конфиденциальности.")
 
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton(text='✅ СОГЛАШАЮСЬ', callback_data='agree'))
@@ -565,7 +565,7 @@ def ask_question(chat_id):
         bot.send_message(chat_id, "Площадь подсобного помещения в м²:")
 
     elif state == states['doors']:
-        bot.send_message(chat_id, "Введите количество дверей на стенде:")
+        bot.send_message(chat_id, "Введите количество дверей на стенде (0 - 100):")
 
     elif state == states['overhead']:
         bot.send_message(chat_id, "Подвесная конструкция над стендом:", reply_markup=create_inline_keyboard(
@@ -588,7 +588,7 @@ def ask_question(chat_id):
                          reply_markup=create_inline_keyboard([str(i) for i in [0, 1, 2, 3, 4, 6, 8, 10]]))
 
     elif state == states['kashpo']:
-        bot.send_message(chat_id, "Сколько кашпо с растениями?",
+        bot.send_message(chat_id, "Сколько кашпо с растениями трубется?",
                          reply_markup=create_inline_keyboard([str(i) for i in range(0, 11)]))
 
 
@@ -639,7 +639,7 @@ def ask_question(chat_id):
                          reply_markup=create_inline_keyboard(["32", "50", "70", "85"]))
 
     elif state == states['led_screens']:
-        bot.send_message(chat_id,  "Сколько светодиодных экранов?", reply_markup=create_inline_keyboard(['0', '1', '2']))
+        bot.send_message(chat_id,  "Сколько светодиодных видеоэкранов?", reply_markup=create_inline_keyboard(['0', '1', '2']))
 
 
     elif state == states['led_size1']:
@@ -647,7 +647,7 @@ def ask_question(chat_id):
         if led_count <= 0:
             user_data[chat_id]['state'] = states['event_name']
             return ask_question(chat_id)
-        bot.send_message(chat_id, "Размер первого экрана:",
+        bot.send_message(chat_id, "Размер видеоэкрана:",
                          reply_markup=create_inline_keyboard(
                              ["1x2", "1.5x2", "1.5x2.5", "1.5x3", "2x2", "2x3", "3x3", "3x4", "4x4"]))
 
@@ -657,7 +657,7 @@ def ask_question(chat_id):
         if led_count <= 1:
             user_data[chat_id]['state'] = states['event_name']
             return ask_question(chat_id)
-        bot.send_message(chat_id, "Размер второго экрана:",
+        bot.send_message(chat_id, "Размер второго видеоэкрана:",
                          reply_markup=create_inline_keyboard(
                              ["1x2", "1.5x2", "1.5x2.5", "1.5x3", "2x2", "2x3", "3x3", "3x4", "4x4"]))
 
@@ -718,7 +718,7 @@ def ask_question(chat_id):
         bot.send_message(chat_id, "Нужна ли кофемашина?", reply_markup=create_inline_keyboard(['Да', 'Нет']))
 
     elif state == states['furniture_shelves']:
-        bot.send_message(chat_id, "Сколько стеллажей?",
+        bot.send_message(chat_id, "Сколько стеллажей требуется?",
                          reply_markup=create_inline_keyboard([str(i) for i in range(0, 6)]))
 
     elif state == states['admin_panel']:
@@ -891,7 +891,7 @@ def calculate_cost(chat_id):
         if answers.get(states['furniture_coffee'], 'Нет') == 'Да':
             furniture_cost['coffee'] = 20000
 
-        cost['3. Изготовление стенда и прокатное оборудование']['3.5 Мебель'] = sum(furniture_cost.values())
+        cost['3. Изготовление стенда и прокатное оборудование']['3.5 Мебель'] = sum(furniture_cost.values()) + 20000
 
     led_cost = 0
     if led_screens >= 1:
@@ -952,7 +952,7 @@ def calculate_cost(chat_id):
     # 3. Изготовление стенда и прокатное оборудование
     equip_cost = cost.get('3. Изготовление стенда и прокатное оборудование', {})
     if equip_cost:
-        result += f"\n\n3. Изготовление стенда и прокатное оборудование"
+        result += f"\n3. Изготовление стенда и прокатное оборудование"
         equip_total = 0
 
         # 3.1 Пол
@@ -1012,7 +1012,7 @@ def calculate_cost(chat_id):
 
     # Общая стоимость
     final_grand_total = math.ceil(mount_value + doc_value + accr_value + equip_total)
-    result += f"\n\n💰 <b>Общая стоимость: {final_grand_total:,.0f} руб.</b>"
+    result += f"\n\n💰 <b>ОБЩАЯ ПРЕДВАРИТЕЛЬНАЯ СТОИМОСТЬ: {final_grand_total:,.0f} руб.</b>"
 
     # Отправляем пользователю
     bot.send_message(chat_id, result, parse_mode='HTML')
@@ -1085,7 +1085,7 @@ def handle_admin_view_order(call):
         details += f"🆔 ID чата: {order['chat_id']}\n"
         details += f"📅 Дата отправки: {order['timestamp']}\n"
         details += f"🏷 Выставка: {order['event_name']}\n"
-        details += f"💰 Общая стоимость: {order['total']:,} руб.\n\n"
+        details += f"💰 ОБЩАЯ ПРЕДВАРИТЕЛЬНАЯ СТОИМОСТЬ: {order['total']:,} руб.\n\n"
 
         details += "📦 <b>Ответы пользователя:</b>\n"
         for state_key in sorted(answers.keys()):
@@ -1213,9 +1213,9 @@ def handle_admin_view_session(call):
         details += f"📐 Площадь: {area} м²\n"
         details += f"🏷 Выставка: {event_name}\n"
         if total is not None and isinstance(total, (int, float)):
-            details += f"💰 Общая стоимость: {total:,.0f} руб.\n"
+            details += f"💰 ОБЩАЯ ПРЕДВАРИТЕЛЬНАЯ СТОИМОСТЬ: {total:,.0f} руб.\n"
         else:
-            details += "💰 Общая стоимость: Расчёт не завершён\n"
+            details += "💰 ОБЩАЯ ПРЕДВАРИТЕЛЬНАЯ СТОИМОСТЬ: Расчёт не завершён\n"
 
         details += "📦 <b>Ответы пользователя:</b>\n"
         answers = session['answers']
@@ -1351,7 +1351,7 @@ def handle_submit_from_history(call):
 
             admin_msg += f"🔹 {display_question_name}: {formatted_answer}\n"
 
-        admin_msg += f"💰 <b>Общая стоимость:</b> {order_data['total']:,.0f} руб."
+        admin_msg += f"💰 <b>ОБЩАЯ ПРЕДВАРИТЕЛЬНАЯ СТОИМОСТЬ:</b> {order_data['total']:,.0f} руб."
 
         for admin_id in admin_ids:
             try:
