@@ -531,7 +531,7 @@ def ask_question(chat_id):
 
     elif state == states['floor']:
         bot.send_message(chat_id, "Выберите тип напольного покрытия:",
-                         reply_markup=create_inline_keyboard(['Ковролин', 'Ламинат(ЛДСП)']))
+                         reply_markup=create_inline_keyboard(['Ковролин', 'Ламинат (ЛДСП)']))
 
     elif state == states['wall_height']:
         bot.send_message(chat_id, "Выберите высоту стен:",
@@ -569,14 +569,14 @@ def ask_question(chat_id):
 
     elif state == states['overhead']:
         bot.send_message(chat_id, "Подвесная конструкция над стендом:", reply_markup=create_inline_keyboard(
-            ['Нет', 'Малый подвес (до 4 м²)', 'Большой подвес (от 4 м²)']))
+            ['Нет', 'Малый подвес (до 4 м²)', 'Большой подвес (от 4,5 м²)']))
 
     elif state == states['light_logos']:
-        bot.send_message(chat_id, "Сколько световых логотипов?",
+        bot.send_message(chat_id, "Сколько световых логотипов, лайтбоксов и световых элементов?",
                          reply_markup=create_inline_keyboard([str(i) for i in range(0, 8)]))
 
     elif state == states['non_light_logos']:
-        bot.send_message(chat_id, "Сколько несветовых логотипов?",
+        bot.send_message(chat_id, "Сколько несветовых объемных логотипов и графических элементов?",
                          reply_markup=create_inline_keyboard([str(i) for i in range(0, 8)]))
 
     elif state == states['reception_stands']:
@@ -611,7 +611,7 @@ def ask_question(chat_id):
         if tv_count <= 0:
             user_data[chat_id]['state'] = states['led_screens']
             return ask_question(chat_id)
-        bot.send_message(chat_id, "Размер первой ТВ-плазмы:",
+        bot.send_message(chat_id, "Размер ТВ-плазмы:",
                          reply_markup=create_inline_keyboard(["32", "50", "70", "85"]))
 
     elif state == states['tv_size2']:
