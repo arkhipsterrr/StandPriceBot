@@ -6,7 +6,7 @@ import math
 
 API_TOKEN = '8110459054:AAE-twMstc5mDLp7jeXSjtYJz6tX48Jaiik'  # ВАШ API ТОКЕН
 bot = telebot.TeleBot(API_TOKEN)
-admin_ids = [1453081434,331697484]  # ID Администраторов
+admin_ids = [331697484]  # ID Администраторов
 
 # Хранение данных пользователя
 user_data = {}
