@@ -5,7 +5,7 @@ import uuid
 import math
 import os
 
-API_TOKEN = os.getenv(API_TOKEN)  # ВАШ API ТОКЕН
+API_TOKEN = os.getenv('API_TOKEN')  # ВАШ API ТОКЕН
 bot = telebot.TeleBot(API_TOKEN)
 admin_ids = [331697484]  # ID Администраторов
 
