@@ -5,9 +5,9 @@ import uuid
 import math
 import os
 
-API_TOKEN = os.getenv('API_TOKEN')  # ВАШ API ТОКЕН
+API_TOKEN = os.getenv('8110459054:AAE-twMstc5mDLp7jeXSjtYJz6tX48Jaiik')  # ВАШ API ТОКЕН
 bot = telebot.TeleBot(API_TOKEN)
-admin_ids = [331697484]  # ID Администраторов
+admin_ids = [331697484] # ID Администраторов
 
 # Хранение данных пользователя
 user_data = {}
@@ -128,7 +128,10 @@ prices = {
         'floor': {'carpet': {'with_podium': 1000, 'no_podium': 1500},
                   'laminate': {'with_podium': 2500, 'no_podium': 3000}},
         'wall': 9000,
-        'overhead': {'small': 600000, 'big': 1200000},
+        'overhead': {
+            'small': 600000,
+            'big': 1200000
+        },
         'tv': {'32': 10000, '50': 15000, '70': 35000, '85': 90000},
         'plants': {'live': 60000, 'fake': 45000},
         'light_logo': 45000,
@@ -150,7 +153,10 @@ prices = {
         'floor': {'carpet': {'with_podium': 1000, 'no_podium': 1500},
                   'laminate': {'with_podium': 2500, 'no_podium': 3000}},
         'wall': 7500,
-        'overhead': {'small': 500000, 'big': 1000000},
+        'overhead': {
+            'small': 500000,
+            'big': 1000000
+        },
         'tv': {'32': 10000, '50': 15000, '70': 35000, '85': 90000},
         'plants': {'live': 60000, 'fake': 45000},
         'light_logo': 45000,
@@ -841,12 +847,22 @@ def calculate_cost(chat_id):
     wall_price = prices[city]['wall']
     cost['3. Изготовление стенда и прокатное оборудование']['3.2 Стены'] = wall_price * wall_area_for_formulas + doors * 15000
 
+    # Расчёт стоимости подвесной конструкции
+    # Расчёт стоимости подвесной конструкции
     if overhead == 'Малый подвес (до 4 м²)':
-        cost['3. Изготовление стенда и прокатное оборудование']['3.3 Подвесная конструкция'] = prices[city]['overhead'][
-            'small']
-    elif overhead == 'Большой подвес (от 4 м²)':
-        cost['3. Изготовление стенда и прокатное оборудование']['3.3 Подвесная конструкция'] = prices[city]['overhead'][
-            'big']
+        small_price = prices.get(city, {}).get('overhead', {}).get('small', 0)
+        if small_price > 0:
+            cost['3. Изготовление стенда и прокатное оборудование']['3.3 Подвесная конструкция'] = small_price
+        else:
+            print(f"Ошибка: Не найдена цена для малого подвеса в городе {city}")
+    elif overhead == 'Большой подвес (от 4,5 м²)':
+        big_price = prices.get(city, {}).get('overhead', {}).get('big', 0)
+        if big_price > 0:
+            cost['3. Изготовление стенда и прокатное оборудование']['3.3 Подвесная конструкция'] = big_price
+        else:
+            print(f"Ошибка: Не найдена цена для большого подвеса в городе {city}")
+    else:
+        print(f"Ошибка: Неверный выбор подвеса: {overhead}")
 
     cost['3. Изготовление стенда и прокатное оборудование']['3.4 Индивидуальные конструкции'] = reception_stands * \
                                                                                                 prices[city][
@@ -968,7 +984,8 @@ def calculate_cost(chat_id):
             result += f"\n  3.2 Стены (стеновые короба, облицовка стен): {val:,.0f} руб."
             equip_total += val
 
-        # 3.3 Подвесная конструкция
+
+        # Вывод "Подвесной конструкции"
         val = equip_cost.get('3.3 Подвесная конструкция', 0)
         if val > 0:
             result += f"\n  3.3 Подвесная конструкция (точки подвеса, лебедки, фермы, конструктив): {val:,.0f} руб."
@@ -1004,8 +1021,6 @@ def calculate_cost(chat_id):
             result += f"\n  3.8 Брендирование: {val:,.0f} руб."
             equip_total += val
 
-        if equip_total > 0:
-            result += f"\n  Итого по категории: {equip_total:,.0f} руб."
 
     # 4. Монтажные работы, транспортные расходы, демонтаж
     mount_value = cost.get('4. Монтажные работы, транспортные расходы, демонтаж', 0)
