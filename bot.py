@@ -129,8 +129,9 @@ prices = {
                   'laminate': {'with_podium': 2500, 'no_podium': 3000}},
         'wall': 9000,
         'overhead': {
-            'small': 600000,
-            'big': 1200000
+            'small': 600000,   # Москва: малый до 4 м²
+            'medium': 1200000, # Москва: средний от 4 до 12 м²
+            'large': 1800000   # Москва: большой от 12 м²
         },
         'tv': {'32': 10000, '50': 15000, '70': 35000, '85': 90000},
         'plants': {'live': 60000, 'fake': 45000},
@@ -154,8 +155,9 @@ prices = {
                   'laminate': {'with_podium': 2500, 'no_podium': 3000}},
         'wall': 7500,
         'overhead': {
-            'small': 500000,
-            'big': 1000000
+            'small': 500000,   # СПб: малый до 4 м²
+            'medium': 1000000, # СПб: средний от 4 до 12 м²
+            'large': 1500000   # СПб: большой от 12 м²
         },
         'tv': {'32': 10000, '50': 15000, '70': 35000, '85': 90000},
         'plants': {'live': 60000, 'fake': 45000},
@@ -574,9 +576,12 @@ def ask_question(chat_id):
     elif state == states['doors']:
         bot.send_message(chat_id, "Введите количество дверей на стенде (0 - 100):")
 
+
     elif state == states['overhead']:
+
         bot.send_message(chat_id, "Подвесная конструкция над стендом:", reply_markup=create_inline_keyboard(
-            ['Нет', 'Малый подвес (до 4 м²)', 'Большой подвес (от 4,5 м²)']))
+
+            ['Нет', 'Малый подвес (до 4 м²)', 'Средний подвес (4-12 м²)', 'Большой подвес (от 12 м²)']))
 
     elif state == states['light_logos']:
         bot.send_message(chat_id, "Сколько световых логотипов, лайтбоксов и световых элементов?",
@@ -849,27 +854,20 @@ def calculate_cost(chat_id):
 
     # Расчёт стоимости подвесной конструкции
     # Расчёт стоимости подвесной конструкции
-    if overhead == 'Малый подвес (до 4 м²)':
-        small_price = prices.get(city, {}).get('overhead', {}).get('small', 0)
-        if small_price > 0:
-            cost['3. Изготовление стенда и прокатное оборудование']['3.3 Подвесная конструкция'] = small_price
-        else:
-            print(f"Ошибка: Не найдена цена для малого подвеса в городе {city}")
-    elif overhead == 'Большой подвес (от 4,5 м²)':
-        big_price = prices.get(city, {}).get('overhead', {}).get('big', 0)
-        if big_price > 0:
-            cost['3. Изготовление стенда и прокатное оборудование']['3.3 Подвесная конструкция'] = big_price
-        else:
-            print(f"Ошибка: Не найдена цена для большого подвеса в городе {city}")
-    else:
-        print(f"Ошибка: Неверный выбор подвеса: {overhead}")
+    # Расчёт стоимости подвесной конструкции
+    overhead_choice = overhead
+    overhead_cost = 0
 
-    cost['3. Изготовление стенда и прокатное оборудование']['3.4 Индивидуальные конструкции'] = reception_stands * \
-                                                                                                prices[city][
-                                                                                                    'reception_stand']
-    cost['3. Изготовление стенда и прокатное оборудование']['3.4 Индивидуальные конструкции'] += podmaketniki * \
-                                                                                                 prices[city][
-                                                                                                     'podmaketnik_price']
+    if overhead_choice == 'Малый подвес (до 4 м²)':
+        overhead_cost = prices[city]['overhead']['small']
+    elif overhead_choice == 'Средний подвес (4-12 м²)':
+        overhead_cost = prices[city]['overhead']['medium']
+    elif overhead_choice == 'Большой подвес (от 12 м²)':
+        overhead_cost = prices[city]['overhead']['large']
+    else:
+        overhead_cost = 0  # 'Нет' или неизвестный выбор
+
+    cost['3. Изготовление стенда и прокатное оборудование']['3.3 Подвесная конструкция'] = overhead_cost
 
     if plants != 'Не нужны' and kashpo > 0:
         plant_price = prices[city]['plants']['live'] if plants == 'Живые комнатные растения' else \
