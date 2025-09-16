@@ -748,300 +748,240 @@ def ask_question(chat_id):
 
 
 # Расчёт стоимости
-def calculate_cost(chat_id):
-    answers = user_data[chat_id].get('answers', {})
-    city_raw = answers.get(states['city'], 'Москва').lower()
+import threading
 
-    if city_raw == 'москва':
-        city = 'moscow'
-    elif city_raw == 'санкт-петербург':
-        city = 'spb'
-    else:
-        city = 'moscow'  # Fallback
+def calculate_cost_in_thread(chat_id):
+    try:
+        answers = user_data[chat_id].get('answers', {})
+        city_raw = answers.get(states['city'], 'Москва')
+        if not city_raw:
+            city_raw = 'Москва'
 
-    area = float(answers.get(states['area'], 0))
-    podium = answers.get(states['podium'], 'Нет')
-    floor_type = answers.get(states['floor'], 'Ковролин')
-    wall_height = answers.get(states['wall_height'], '3-4м')
-    doors = int(answers.get(states['doors'], 0))
-    overhead = answers.get(states['overhead'], 'Нет')
-    light_logos = int(answers.get(states['light_logos'], 0))
-    non_light_logos = int(answers.get(states['non_light_logos'], 0))
-    reception_stands = int(answers.get(states['reception_stands'], 0))
-    podmaketniki = int(answers.get(states['podmaketniki'], 0))
-    kashpo = int(answers.get(states['kashpo'], 0))
-    plants = answers.get(states['plants'], 'Не нужны')
-    tv_count = int(answers.get(states['tv'], 0))
-    led_screens = int(answers.get(states['led_screens'], 0))
-    furniture_choice = answers.get(states['furniture'], 'Нет')
+        if city_raw == 'Москва':
+            city = 'moscow'
+        elif city_raw == 'Санкт-Петербург':
+            city = 'spb'
+        else:
+            city = 'moscow'
 
-    meeting_room1_area = float(answers.get(states['meeting_room1'], 0)) if int(
-        answers.get(states['meeting_rooms'], 0)) >= 1 else 0
-    meeting_room2_area = float(answers.get(states['meeting_room2'], 0)) if int(
-        answers.get(states['meeting_rooms'], 0)) >= 2 else 0
-    utility_room_area_val = float(answers.get(states['utility_room_area'], 0)) if answers.get(states['utility_room'],
-                                                                                              'Нет') == 'Да' else 0
+        # --- Парсинг числовых данных с безопасной обработкой ---
+        def safe_float(key, default=0.0):
+            val = answers.get(key)
+            if val is None or val == 'Не нужно' or val == 'Нет':
+                return 0.0
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return 0.0
 
-    # Определяем wall_area_for_formulas: зависит от наличия переговорных комнат
-    meeting_rooms_count = int(answers.get(states['meeting_rooms'], 0))
-
-    def get_average_wall_height(wall_height_str):
-        try:
-            clean = wall_height_str.replace('м', '').strip()
-            parts = clean.split('-')
-            if len(parts) == 2:
-                h1, h2 = float(parts[0]), float(parts[1])
-                return (h1 + h2) / 2
-            else:
-                return float(parts[0])
-        except:
-            return 3.5
-
-    if meeting_rooms_count == 0:
-        # Нет переговорных — используем половину площади стенда
-        base_area = area / 2
-        side_length = base_area ** 0.5
-        perimeter = 4 * side_length
-        avg_wall_height = get_average_wall_height(wall_height)
-        wall_area_for_formulas = perimeter * avg_wall_height
-    else:
-        # Есть переговорные — используем их и подсобку
-        base_area = meeting_room1_area + meeting_room2_area + utility_room_area_val
-        side_length = base_area ** 0.5
-        perimeter = 4 * side_length
-        avg_wall_height = get_average_wall_height(wall_height)
-        wall_area_for_formulas = perimeter * avg_wall_height
-
-    cost = {
-        '1. Документация': 0,
-        '2. Аккредитация': 0,
-        '3. Изготовление стенда и прокатное оборудование': {
-            '3.1 Пол': 0,
-            '3.2 Стены': 0,
-            '3.3 Подвесная конструкция': 0,
-            '3.4 Индивидуальные конструкции': 0,
-            '3.5 Мебель': 0,
-            '3.6 Мультимедиа': 0,
-            '3.7 Электрика и освещение': 0,
-            '3.8 Брендирование': 0
-        },
-        '4. Монтажные работы, транспортные расходы, демонтаж': 0
-    }
-
-    cost['1. Документация'] = area * prices[city]['documentation']
-
-
-    cost['2. Аккредитация'] = (
-            1600 * area +
-            wall_area_for_formulas * 450 * 2 +
-            450 * area +
-            50000 +
-            15000
-    )
-
-    if podium == 'Да':
-        cost['3. Изготовление стенда и прокатное оборудование']['3.1 Пол'] += area * prices[city]['podium_base_cost']
-    else:
-        cost['3. Изготовление стенда и прокатное оборудование']['3.1 Пол'] += area * 500
-
-    if floor_type == 'Ковролин':
-        cost['3. Изготовление стенда и прокатное оборудование']['3.1 Пол'] += area * 1000
-    else:
-        cost['3. Изготовление стенда и прокатное оборудование']['3.1 Пол'] += area * 2500
-
-    wall_price = prices[city]['wall']
-    cost['3. Изготовление стенда и прокатное оборудование']['3.2 Стены'] = wall_price * wall_area_for_formulas + doors * 15000
-
-    # Расчёт стоимости подвесной конструкции
-    # Расчёт стоимости подвесной конструкции
-    # Расчёт стоимости подвесной конструкции
-    overhead_choice = overhead
-    overhead_cost = 0
-
-    if overhead_choice == 'Малый подвес (до 4 м²)':
-        overhead_cost = prices[city]['overhead']['small']
-    elif overhead_choice == 'Средний подвес (4-12 м²)':
-        overhead_cost = prices[city]['overhead']['medium']
-    elif overhead_choice == 'Большой подвес (от 12 м²)':
-        overhead_cost = prices[city]['overhead']['large']
-    else:
-        overhead_cost = 0  # 'Нет' или неизвестный выбор
-
-    cost['3. Изготовление стенда и прокатное оборудование']['3.3 Подвесная конструкция'] = overhead_cost
-
-    if plants != 'Не нужны' and kashpo > 0:
-        plant_price = prices[city]['plants']['live'] if plants == 'Живые комнатные растения' else \
-        prices[city]['plants']['fake']
-        cost['3. Изготовление стенда и прокатное оборудование'][
-            '3.4 Индивидуальные конструкции'] += kashpo * plant_price
-
-    if furniture_choice == 'Да':
-        def safe_int(val):
+        def safe_int(key, default=0):
+            val = answers.get(key)
+            if val is None or val in ['Не нужно', 'Нет', 'Да']:
+                return 0
             try:
                 return int(val)
             except (ValueError, TypeError):
                 return 0
 
-        furniture_cost = {
-            'tommy': safe_int(answers.get(states['furniture_tommy'])) * 2500,
-            'gydra': safe_int(answers.get(states['furniture_gydra'])) * 4000,
-            'eams': safe_int(answers.get(states['furniture_eams'])) * 1500,
-            'sofa': safe_int(answers.get(states['furniture_sofa'])) * 9000,
-            'coffee_table': safe_int(answers.get(states['furniture_coffee_table'])) * 4000,
-            'meeting_table': safe_int(answers.get(states['furniture_meeting_table'])) * 20000,
-            'samba_chairs': safe_int(answers.get(states['furniture_samba_chairs'])) * 3500,
-            'shelves': safe_int(answers.get(states['furniture_shelves'])) * 2000,
+        area = safe_float(states['area'])
+        podium = answers.get(states['podium'], 'Нет')
+        floor_type = answers.get(states['floor'], 'Ковролин')
+        wall_height = answers.get(states['wall_height'], '3-4м')
+        doors = safe_int(states['doors'])
+        overhead = answers.get(states['overhead'], 'Нет')
+        light_logos = safe_int(states['light_logos'])
+        non_light_logos = safe_int(states['non_light_logos'])
+        reception_stands = safe_int(states['reception_stands'])
+        podmaketniki = safe_int(states['podmaketniki'])
+        kashpo = safe_int(states['kashpo'])
+        plants = answers.get(states['plants'], 'Не нужны')
+        tv_count = safe_int(states['tv'])
+        led_screens = safe_int(states['led_screens'])
+        furniture_choice = answers.get(states['furniture'], 'Нет')
+
+        meeting_room1_area = safe_float(states['meeting_room1']) if safe_int(states['meeting_rooms']) >= 1 else 0.0
+        meeting_room2_area = safe_float(states['meeting_room2']) if safe_int(states['meeting_rooms']) >= 2 else 0.0
+
+        # Площадь подсобки — только если выбрано "Да"
+        utility_room_area_val = 0.0
+        if answers.get(states['utility_room'], 'Нет') == 'Да':
+            utility_room_area_val = safe_float(states['utility_room_area'])
+
+        # Расчёт высоты стен
+        def get_average_wall_height(wall_height_str):
+            try:
+                clean = str(wall_height_str).replace('м', '').strip()
+                parts = clean.split('-')
+                if len(parts) == 2:
+                    h1, h2 = float(parts[0]), float(parts[1])
+                    return (h1 + h2) / 2
+                else:
+                    return float(parts[0])
+            except:
+                return 3.5
+
+        avg_wall_height = get_average_wall_height(wall_height)
+
+        # Определяем периметр для расчёта стен
+        meeting_rooms_count = safe_int(states['meeting_rooms'])
+        if meeting_rooms_count == 0:
+            base_area = area / 2
+        else:
+            base_area = meeting_room1_area + meeting_room2_area + utility_room_area_val
+
+        side_length = math.sqrt(base_area) if base_area > 0 else 1
+        perimeter = 4 * side_length
+        wall_area_for_formulas = perimeter * avg_wall_height
+
+        # Начинаем формировать стоимость
+        cost = {
+            '1. Документация': 0,
+            '2. Аккредитация': 0,
+            '3. Изготовление стенда и прокатное оборудование': {
+                '3.1 Пол': 0,
+                '3.2 Стены': 0,
+                '3.3 Подвесная конструкция': 0,
+                '3.4 Индивидуальные конструкции': 0,
+                '3.5 Мебель': 0,
+                '3.6 Мультимедиа': 0,
+                '3.7 Электрика и освещение': 0,
+                '3.8 Брендирование': 0
+            },
+            '4. Монтажные работы, транспортные расходы, демонтаж': 0
         }
 
-        fridge_choice = answers.get(states['furniture_fridge'], 'Нет')
-        fridge_size = answers.get(states['furniture_fridge_size'], '')
-        if fridge_choice == 'Да':
-            if fridge_size == 'Большой':
-                furniture_cost['fridge'] = 12000
-            elif fridge_size == 'Средний':
-                furniture_cost['fridge'] = 9000
+        cost['1. Документация'] = area * prices[city]['documentation']
+        cost['2. Аккредитация'] = (
+            1600 * area +
+            wall_area_for_formulas * 450 * 2 +
+            450 * area +
+            50000 +
+            15000
+        )
 
-        if answers.get(states['furniture_cooler'], 'Нет') == 'Да':
-            furniture_cost['cooler'] = 7000
-        if answers.get(states['furniture_coffee'], 'Нет') == 'Да':
-            furniture_cost['coffee'] = 20000
+        # Пол
+        if podium == 'Да':
+            cost['3. Изготовление стенда и прокатное оборудование']['3.1 Пол'] += area * prices[city]['podium_base_cost']
+        else:
+            cost['3. Изготовление стенда и прокатное оборудование']['3.1 Пол'] += area * 500
 
-        cost['3. Изготовление стенда и прокатное оборудование']['3.5 Мебель'] = sum(furniture_cost.values()) + 20000
+        if floor_type == 'Ковролин':
+            cost['3. Изготовление стенда и прокатное оборудование']['3.1 Пол'] += area * 1000
+        else:
+            cost['3. Изготовление стенда и прокатное оборудование']['3.1 Пол'] += area * 2500
 
-    led_cost = 0
-    if led_screens >= 1:
-        size1 = answers.get(states['led_size1'], '1x2')
-        try:
-            w, h = map(float, size1.lower().replace('х', 'x').split('x'))
-            led_cost += prices[city]['led_screen'] * (w * h)
-        except (ValueError, AttributeError):
-            pass
+        # Стены
+        wall_price = prices[city]['wall']
+        cost['3. Изготовление стенда и прокатное оборудование']['3.2 Стены'] = wall_price * wall_area_for_formulas + doors * 15000
 
-    if led_screens >= 2:
-        size2 = answers.get(states['led_size2'], '1x2')
-        try:
-            w, h = map(float, size2.lower().replace('х', 'x').split('x'))
-            led_cost += prices[city]['led_screen'] * (w * h)
-        except (ValueError, AttributeError):
-            pass
+        # Подвес
+        overhead_cost = 0
+        if overhead == 'Малый подвес (до 4 м²)':
+            overhead_cost = prices[city]['overhead']['small']
+        elif overhead == 'Средний подвес (4-12 м²)':
+            overhead_cost = prices[city]['overhead']['medium']
+        elif overhead == 'Большой подвес (от 12 м²)':
+            overhead_cost = prices[city]['overhead']['large']
 
-    tv_costs = 0
-    tv_sizes = [
-        answers.get(states['tv_size']),
-        answers.get(states['tv_size2']),
-        answers.get(states['tv_size3']),
-        answers.get(states['tv_size4'])
-    ]
-    for i in range(tv_count):
-        size_key = str(tv_sizes[i]).replace("'", "")
-        if size_key in prices[city]['tv']:
-            tv_costs += prices[city]['tv'][size_key]
+        cost['3. Изготовление стенда и прокатное оборудование']['3.3 Подвесная конструкция'] = overhead_cost
 
-    cost['3. Изготовление стенда и прокатное оборудование']['3.6 Мультимедиа'] = led_cost + tv_costs
+        # Растения
+        if plants != 'Не нужны' and kashpo > 0:
+            plant_price = prices[city]['plants']['live'] if plants == 'Живые комнатные растения' else prices[city]['plants']['fake']
+            cost['3. Изготовление стенда и прокатное оборудование']['3.4 Индивидуальные конструкции'] += kashpo * plant_price
 
-    cost['3. Изготовление стенда и прокатное оборудование']['3.7 Электрика и освещение'] = prices[city]['electricity'][
-                                                                                               'base'] + perimeter * \
-                                                                                           prices[city]['electricity'][
-                                                                                               'perimeter']
+        # Мебель
+        if furniture_choice == 'Да':
+            furniture_cost = {
+                'tommy': safe_int(states['furniture_tommy']) * 2500,
+                'gydra': safe_int(states['furniture_gydra']) * 4000,
+                'eams': safe_int(states['furniture_eams']) * 1500,
+                'sofa': safe_int(states['furniture_sofa']) * 9000,
+                'coffee_table': safe_int(states['furniture_coffee_table']) * 4000,
+                'meeting_table': safe_int(states['furniture_meeting_table']) * 20000,
+                'samba_chairs': safe_int(states['furniture_samba_chairs']) * 3500,
+                'shelves': safe_int(states['furniture_shelves']) * 2000,
+            }
+            fridge_choice = answers.get(states['furniture_fridge'], 'Нет')
+            fridge_size = answers.get(states['furniture_fridge_size'], '')
+            if fridge_choice == 'Да':
+                furniture_cost['fridge'] = 12000 if fridge_size == 'Большой' else 9000
+            if answers.get(states['furniture_cooler'], 'Нет') == 'Да':
+                furniture_cost['cooler'] = 7000
+            if answers.get(states['furniture_coffee'], 'Нет') == 'Да':
+                furniture_cost['coffee'] = 20000
 
-    cost['3. Изготовление стенда и прокатное оборудование']['3.8 Брендирование'] = (
-            light_logos * prices[city]['light_logo'] +
-            non_light_logos * prices[city]['non_light_logo']
-    )
+            cost['3. Изготовление стенда и прокатное оборудование']['3.5 Мебель'] = sum(furniture_cost.values()) + 20000
 
-    mount_cost = (3000 * area + 4500 * wall_area_for_formulas)
-    transport_cost = prices[city]['transport']
-    cost['4. Монтажные работы, транспортные расходы, демонтаж'] = mount_cost + transport_cost
+        # LED экраны
+        led_cost = 0
+        for i in range(1, 3):
+            if led_screens >= i:
+                size_key = states[f'led_size{i}']
+                size = answers.get(size_key, '1x2')
+                try:
+                    w, h = map(float, str(size).lower().replace('х', 'x').split('x'))
+                    led_cost += prices[city]['led_screen'] * (w * h)
+                except:
+                    pass
 
-    # --- НОВЫЙ ФОРМАТ ВЫВОДА СМЕТЫ ---
-    result = "🧮 <b>ПРЕДВАРИТЕЛЬНАЯ сметная стоимость стенда:</b>\n"
+        # ТВ
+        tv_costs = 0
+        for i in range(1, 5):
+            if tv_count >= i:
+                size_key = states[f'tv_size{i}']
+                size = answers.get(size_key, '32')
+                try:
+                    size_str = str(size).strip()
+                    if size_str in prices[city]['tv']:
+                        tv_costs += prices[city]['tv'][size_str]
+                except:
+                    pass
 
-    # 1. Документация
-    doc_value = cost.get('1. Документация', 0)
-    result += f"\n1. Документация (конструкторские чертежи, электропроект, расчет нагрузок, макетирование и пр.): {doc_value:,.0f} руб.\n"
+        cost['3. Изготовление стенда и прокатное оборудование']['3.6 Мультимедиа'] = led_cost + tv_costs
+        cost['3. Изготовление стенда и прокатное оборудование']['3.7 Электрика и освещение'] = prices[city]['electricity']['base'] + perimeter * prices[city]['electricity']['perimeter']
+        cost['3. Изготовление стенда и прокатное оборудование']['3.8 Брендирование'] = light_logos * prices[city]['light_logo'] + non_light_logos * prices[city]['non_light_logo']
 
-    # 2. Аккредитация
-    accr_value = cost.get('2. Аккредитация', 0)
-    result += f"\n2. Аккредитация (расходы ОТК, противопожарная обработка, страхование, утилизация): {accr_value:,.0f} руб.\n"
+        mount_cost = 3000 * area + 4500 * wall_area_for_formulas
+        transport_cost = prices[city]['transport']
+        cost['4. Монтажные работы, транспортные расходы, демонтаж'] = mount_cost + transport_cost
 
-    # 3. Изготовление стенда и прокатное оборудование
-    equip_cost = cost.get('3. Изготовление стенда и прокатное оборудование', {})
-    if equip_cost:
-        result += f"\n3. Изготовление стенда и прокатное оборудование"
-        equip_total = 0
+        # Формируем ответ
+        result = "🧮 <b>ПРЕДВАРИТЕЛЬНАЯ сметная стоимость стенда:</b>\n"
+        result += f"\n1. Документация: {cost['1. Документация']:,.0f} руб."
+        result += f"\n2. Аккредитация: {cost['2. Аккредитация']:,.0f} руб."
 
-        # 3.1 Пол
-        val = equip_cost.get('3.1 Пол', 0)
-        if val > 0:
-            result += f"\n  3.1 Пол (в случае наличия - подиум, напольное покрытие): {val:,.0f} руб."
-            equip_total += val
+        equip_total = sum(cost['3. Изготовление стенда и прокатное оборудование'].values())
+        result += f"\n\n3. Изготовление стенда и прокатное оборудование"
+        for key, value in cost['3. Изготовление стенда и прокатное оборудование'].items():
+            if value > 0:
+                result += f"\n  {key}: {value:,.0f} руб."
 
-        # 3.2 Стены
-        val = equip_cost.get('3.2 Стены', 0)
-        if val > 0:
-            result += f"\n  3.2 Стены (стеновые короба, облицовка стен): {val:,.0f} руб."
-            equip_total += val
+        result += f"\n\n4. Монтажные работы, транспортные расходы, демонтаж: {cost['4. Монтажные работы, транспортные расходы, демонтаж']:,.0f} руб."
 
+        final_grand_total = math.ceil(mount_cost + cost['1. Документация'] + cost['2. Аккредитация'] + equip_total)
+        result += f"\n\n💰 <b>ОБЩАЯ ПРЕДВАРИТЕЛЬНАЯ СТОИМОСТЬ: {final_grand_total:,.0f} руб.</b>"
 
-        # Вывод "Подвесной конструкции"
-        val = equip_cost.get('3.3 Подвесная конструкция', 0)
-        if val > 0:
-            result += f"\n  3.3 Подвесная конструкция (точки подвеса, лебедки, фермы, конструктив): {val:,.0f} руб."
-            equip_total += val
+        bot.send_message(chat_id, result, parse_mode='HTML')
 
-        # 3.4 Индивидуальные конструкции
-        val = equip_cost.get('3.4 Индивидуальные конструкции', 0)
-        if val > 0:
-            result += f"\n  3.4 Индивидуальные конструкции (стойки ресепшен, кашпо с растениями, тумбы-подмакетники и пр.): {val:,.0f} руб."
-            equip_total += val
+        session = get_current_session(chat_id)
+        if session:
+            session['finished'] = True
+            session['total'] = final_grand_total
 
-        # 3.5 Мебель
-        val = equip_cost.get('3.5 Мебель', 0)
-        if val > 0:
-            result += f"\n  3.5 Мебель (прокат): {val:,.0f} руб."
-            equip_total += val
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton(text='Оставить заявку', callback_data='submit'))
+        markup.add(types.InlineKeyboardButton(text='Не оставлять', callback_data='cancel'))
+        markup.add(types.InlineKeyboardButton(text='🏠 Вернуться в меню', callback_data='back_to_menu'))
+        bot.send_message(chat_id, "Хотите оставить заявку?", reply_markup=markup)
 
-        # 3.6 Мультимедиа
-        val = equip_cost.get('3.6 Мультимедиа', 0)
-        if val > 0:
-            result += f"\n  3.6 Мультимедиа (прокат): {val:,.0f} руб."
-            equip_total += val
+    except Exception as e:
+        print(f"Ошибка в calculate_cost_in_thread: {e}")
+        bot.send_message(chat_id, "❌ Произошла ошибка при расчёте. Попробуйте снова.")
 
-        # 3.7 Электрика и освещение
-        val = equip_cost.get('3.7 Электрика и освещение', 0)
-        if val > 0:
-            result += f"\n  3.7 Электрика и освещение (прокат): {val:,.0f} руб."
-            equip_total += val
-
-        # 3.8 Брендирование
-        val = equip_cost.get('3.8 Брендирование', 0)
-        if val > 0:
-            result += f"\n  3.8 Брендирование: {val:,.0f} руб."
-            equip_total += val
-
-
-    # 4. Монтажные работы, транспортные расходы, демонтаж
-    mount_value = cost.get('4. Монтажные работы, транспортные расходы, демонтаж', 0)
-    result += f"\n\n4. Монтажные работы, транспортные расходы, демонтаж: {mount_value:,.0f} руб.\n"
-
-    # Общая стоимость
-    final_grand_total = math.ceil(mount_value + doc_value + accr_value + equip_total)
-    result += f"\n\n💰 <b>ОБЩАЯ ПРЕДВАРИТЕЛЬНАЯ СТОИМОСТЬ: {final_grand_total:,.0f} руб.</b>"
-
-    # Отправляем пользователю
-    bot.send_message(chat_id, result, parse_mode='HTML')
-
-    session = get_current_session(chat_id)
-    if session:
-        session['finished'] = True
-        session['total'] = final_grand_total
-
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton(text='Оставить заявку', callback_data='submit'))
-    markup.add(types.InlineKeyboardButton(text='Не оставлять', callback_data='cancel'))
-    markup.add(types.InlineKeyboardButton(text='🏠 Вернуться в меню', callback_data='back_to_menu'))
-    bot.send_message(chat_id, "Хотите оставить заявку?", reply_markup=markup)
-
+# Обёртка для запуска в потоке
+def calculate_cost(chat_id):
+    threading.Thread(target=calculate_cost_in_thread, args=(chat_id,), daemon=True).start()
 
 def handle_admin_orders_list(call):
     chat_id = call.message.chat.id
@@ -1384,4 +1324,4 @@ def handle_submit_from_history(call):
 
 if __name__ == '__main__':
     print("Бот запущен...")
-    bot.polling(none_stop=True)
+    bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
