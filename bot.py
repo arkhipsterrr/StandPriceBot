@@ -755,8 +755,6 @@ def calculate_cost_in_thread(chat_id):
     try:
         answers = user_data[chat_id].get('answers', {})
         city_raw = answers.get(states['city'], 'Москва')
-        if not city_raw:
-            city_raw = 'Москва'
 
         if city_raw == 'Москва':
             city = 'moscow'
@@ -765,22 +763,27 @@ def calculate_cost_in_thread(chat_id):
         else:
             city = 'moscow'
 
-        # --- Безопасные функции для получения данных ---
+        # --- Безопасные функции для получения данных (Улучшенная версия) ---
         def safe_float(key, default=0.0):
             val = answers.get(key)
-            if val is None or val in ['Не нужно', 'Нет', 'Да', '']:
+            # Обрабатываем None, пустые строки и нечисловые ответы
+            if val is None or str(val).strip() in ['Не нужно', 'Нет', 'Да', '']:
                 return default
             try:
-                return float(str(val).replace(',', '.'))
+                # Всегда преобразуем в строку, очищаем и заменяем запятую на точку, затем в float
+                clean_val = str(val).strip().replace(',', '.')
+                return float(clean_val)
             except (ValueError, TypeError):
                 return default
 
         def safe_int(key, default=0):
             val = answers.get(key)
-            if val is None or val in ['Не нужно', 'Нет', 'Да', '']:
+            if val is None or str(val).strip() in ['Не нужно', 'Нет', 'Да', '']:
                 return default
             try:
-                return int(float(str(val))) if '.' in str(val) else int(val)
+                # Самое безопасное преобразование: строка -> float -> int
+                clean_val = str(val).strip().replace(',', '.')
+                return int(float(clean_val))
             except (ValueError, TypeError):
                 return default
 
@@ -816,20 +819,19 @@ def calculate_cost_in_thread(chat_id):
         # --- Расчет высоты стен ---
         def get_average_wall_height(wall_height_str):
             try:
-                clean = str(wall_height_str).replace('м', '').replace('м', '').strip()
+                clean = str(wall_height_str).replace('м', '').strip()
                 parts = clean.split('-')
                 if len(parts) == 2:
-                    h1, h2 = float(parts[0]), float(parts[1])
+                    h1, h2 = float(parts[0].strip()), float(parts[1].strip())
                     return (h1 + h2) / 2
                 else:
-                    return float(parts[0])
+                    return float(parts[0].strip())
             except:
                 return 3.5  # значение по умолчанию
 
         avg_wall_height = get_average_wall_height(wall_height)
 
         # --- Упрощенный расчет периметра ---
-        # Для упрощения считаем, что стенд квадратный
         side_length = math.sqrt(area) if area > 0 else 1
         perimeter = 4 * side_length
         wall_area = perimeter * avg_wall_height
@@ -948,16 +950,13 @@ def calculate_cost_in_thread(chat_id):
                 if size_str in prices[city]['tv']:
                     media_cost += prices[city]['tv'][size_str]
 
-        # LED экраны
+        # LED экраны (Очищенный от лишнего try/except)
         for i in range(1, 3):
             if led_screens >= i:
                 size_key = states[f'led_size{i}']
                 size = answers.get(size_key, '1x2')
-                try:
-                    # Простая стоимость за экран вместо расчета по площади
-                    media_cost += prices[city]['led_screen']
-                except:
-                    media_cost += prices[city]['led_screen']  # базовая стоимость
+                # Добавляем простую стоимость за экран
+                media_cost += prices[city]['led_screen']
 
         cost['3. Изготовление стенда и прокатное оборудование']['3.6 Мультимедиа'] = media_cost
 
@@ -1012,10 +1011,11 @@ def calculate_cost_in_thread(chat_id):
         bot.send_message(chat_id, "Хотите оставить заявку?", reply_markup=markup)
 
     except Exception as e:
-        print(f"Ошибка в calculate_cost_in_thread: {e}")
+        # Дополнительное логирование для отладки, если ошибка останется
         import traceback
+        print(f"❌ Критическая ошибка в calculate_cost_in_thread для chat_id {chat_id}: {e}")
         print(f"Трассировка: {traceback.format_exc()}")
-        bot.send_message(chat_id, "❌ Произошла ошибка при расчёте. Попробуйте снова.")
+        bot.send_message(chat_id, "❌ Произошла критическая ошибка при расчёте. Попробуйте снова.")
 
 # Обёртка для запуска в потоке
 def calculate_cost(chat_id):
