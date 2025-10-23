@@ -4,6 +4,8 @@ from datetime import datetime
 import uuid
 import math
 import os
+import threading
+import traceback # Добавлен для лучшей отладки
 
 API_TOKEN = os.getenv('API_TOKEN')  # ВАШ API ТОКЕН
 bot = telebot.TeleBot(API_TOKEN)
@@ -475,7 +477,13 @@ def handle_text(message):
     try:
         if state in [states['area'], states['meeting_room1'], states['meeting_room2'],
                      states['utility_room_area'], states['doors']]:
-            text = float(text.replace(',', '.'))
+            # Разрешаем ввод чисел с запятой или точкой
+            clean_text = text.replace(',', '.')
+            if state == states['doors']:
+                # Двери должны быть целым числом
+                text = int(float(clean_text))
+            else:
+                text = float(clean_text)
         elif state == states['event_name']:
             pass
         else:
@@ -508,6 +516,15 @@ def handle_text(message):
         user_data[chat_id]['state'] = next_state_map[state]
     else:
         user_data[chat_id]['state'] += 1
+
+    # Логика пропуска для meeting_rooms и utility_room (если нужно)
+    if state == states['meeting_rooms'] and text == '0':
+        user_data[chat_id]['state'] = states['utility_room']
+    elif state == states['utility_room'] and text == 'Нет':
+        user_data[chat_id]['state'] = states['doors']
+    elif state == states['furniture'] and text == 'Нет':
+        user_data[chat_id]['state'] = states['finish']
+
 
     ask_question(chat_id)
 
@@ -551,14 +568,26 @@ def ask_question(chat_id):
 
     elif state == states['meeting_room1']:
         meeting_rooms_ans = answers.get(states['meeting_rooms'])
-        if meeting_rooms_ans is None or int(meeting_rooms_ans) <= 0:
+        # Преобразуем ответ в int для корректного сравнения
+        try:
+            meeting_rooms_ans = int(meeting_rooms_ans)
+        except (TypeError, ValueError):
+            meeting_rooms_ans = 0
+
+        if meeting_rooms_ans <= 0:
             user_data[chat_id]['state'] = states['utility_room']  # Пропускаем 2 комнаты
             return ask_question(chat_id)
         bot.send_message(chat_id, "Площадь первой переговорной комнаты в м²:")
 
     elif state == states['meeting_room2']:
         meeting_rooms_ans = answers.get(states['meeting_rooms'])
-        if meeting_rooms_ans is None or int(meeting_rooms_ans) <= 1:
+        # Преобразуем ответ в int для корректного сравнения
+        try:
+            meeting_rooms_ans = int(meeting_rooms_ans)
+        except (TypeError, ValueError):
+            meeting_rooms_ans = 0
+
+        if meeting_rooms_ans <= 1:
             user_data[chat_id]['state'] = states['utility_room']  # Пропускаем вторую
             return ask_question(chat_id)
         bot.send_message(chat_id, "Площадь второй переговорной комнаты в м²:")
@@ -748,7 +777,6 @@ def ask_question(chat_id):
 
 
 # Расчёт стоимости
-import threading
 
 
 def calculate_cost_in_thread(chat_id):
@@ -761,7 +789,10 @@ def calculate_cost_in_thread(chat_id):
         elif city_raw == 'Санкт-Петербург':
             city = 'spb'
         else:
+            # Если город не выбран, используем Москву по умолчанию
             city = 'moscow'
+            city_raw = 'Москва'
+
 
         # --- Безопасные функции для получения данных (Улучшенная версия) ---
         def safe_float(key, default=0.0):
@@ -785,12 +816,18 @@ def calculate_cost_in_thread(chat_id):
                 clean_val = str(val).strip().replace(',', '.')
                 return int(float(clean_val))
             except (ValueError, TypeError):
-                return default
+                # Если ответ - это, например, '1' или '2' с кнопок
+                try:
+                    return int(str(val))
+                except (ValueError, TypeError):
+                    return default
+
 
         # --- Получение основных данных ---
         area = safe_float(states['area'], 0.0)
         if area <= 0:
-            bot.send_message(chat_id, "❌ Ошибка: площадь стенда должна быть больше 0")
+            # Площадь не введена или равна 0, не можем считать
+            bot.send_message(chat_id, "❌ Ошибка: площадь стенда должна быть больше 0. Начните расчёт заново.")
             return
 
         podium = answers.get(states['podium'], 'Нет')
@@ -808,7 +845,9 @@ def calculate_cost_in_thread(chat_id):
         led_screens = safe_int(states['led_screens'], 0)
         furniture_choice = answers.get(states['furniture'], 'Нет')
 
+        # Переговорные комнаты и подсобка
         meeting_rooms_count = safe_int(states['meeting_rooms'], 0)
+        # Эти поля могут быть введены текстом, поэтому используем safe_float
         meeting_room1_area = safe_float(states['meeting_room1'], 0.0) if meeting_rooms_count >= 1 else 0.0
         meeting_room2_area = safe_float(states['meeting_room2'], 0.0) if meeting_rooms_count >= 2 else 0.0
 
@@ -825,14 +864,16 @@ def calculate_cost_in_thread(chat_id):
                     h1, h2 = float(parts[0].strip()), float(parts[1].strip())
                     return (h1 + h2) / 2
                 else:
-                    return float(parts[0].strip())
+                    return float(parts[0].strip()) if clean else 3.5 # Обработка пустого ввода
             except:
                 return 3.5  # значение по умолчанию
 
         avg_wall_height = get_average_wall_height(wall_height)
 
         # --- Упрощенный расчет периметра ---
-        side_length = math.sqrt(area) if area > 0 else 1
+        # Учитываем площадь всех помещений внутри стенда, так как они строятся внутри периметра
+        total_internal_area = area + meeting_room1_area + meeting_room2_area + utility_room_area_val
+        side_length = math.sqrt(total_internal_area) if total_internal_area > 0 else 1
         perimeter = 4 * side_length
         wall_area = perimeter * avg_wall_height
 
@@ -861,19 +902,20 @@ def calculate_cost_in_thread(chat_id):
 
         # --- 3.1 Пол ---
         floor_cost = 0
-        if podium == 'Да':
+        podium_active = (podium == 'Да')
+
+        if podium_active:
+            # Стоимость подиума + базовая стоимость
             floor_cost += area * prices[city]['podium_base_cost']
 
-        if floor_type == 'Ковролин':
-            if podium == 'Да':
-                floor_cost += area * prices[city]['floor']['carpet']['with_podium']
-            else:
-                floor_cost += area * prices[city]['floor']['carpet']['no_podium']
-        else:  # Ламинат
-            if podium == 'Да':
-                floor_cost += area * prices[city]['floor']['laminate']['with_podium']
-            else:
-                floor_cost += area * prices[city]['floor']['laminate']['no_podium']
+        floor_key = 'carpet' if floor_type == 'Ковролин' else 'laminate'
+        podium_status_key = 'with_podium' if podium_active else 'no_podium'
+
+        # Учитываем всю площадь пола
+        total_floor_area = area + meeting_room1_area + meeting_room2_area + utility_room_area_val
+
+        # Добавляем стоимость покрытия
+        floor_cost += total_floor_area * prices[city]['floor'][floor_key][podium_status_key]
 
         cost['3. Изготовление стенда и прокатное оборудование']['3.1 Пол'] = floor_cost
 
@@ -913,7 +955,7 @@ def calculate_cost_in_thread(chat_id):
         # --- 3.5 Мебель ---
         furniture_cost = 0
         if furniture_choice == 'Да':
-            # Базовые предметы мебели
+            # Базовые предметы мебели (цены не указаны в prices, берем из существующего кода)
             furniture_cost += safe_int(states['furniture_tommy'], 0) * 2500
             furniture_cost += safe_int(states['furniture_gydra'], 0) * 4000
             furniture_cost += safe_int(states['furniture_eams'], 0) * 1500
@@ -942,21 +984,23 @@ def calculate_cost_in_thread(chat_id):
         media_cost = 0
 
         # ТВ-плазмы
-        for i in range(1, 5):
-            if tv_count >= i:
-                size_key = states[f'tv_size{i}']
-                size = answers.get(size_key, '32')
+        # Учитываем, что tv_size (22) - это размер первого ТВ
+        tv_size_keys = {1: states['tv_size'], 2: states['tv_size2'], 3: states['tv_size3'], 4: states['tv_size4']}
+
+        for i in range(1, tv_count + 1):
+            size_key_state = tv_size_keys.get(i)
+            if size_key_state is not None:
+                size = answers.get(size_key_state)
+                # Если ответ был '32', '50' и т.д., он уже в answers
                 size_str = str(size).strip()
                 if size_str in prices[city]['tv']:
                     media_cost += prices[city]['tv'][size_str]
 
-        # LED экраны (Очищенный от лишнего try/except)
-        for i in range(1, 3):
-            if led_screens >= i:
-                size_key = states[f'led_size{i}']
-                size = answers.get(size_key, '1x2')
-                # Добавляем простую стоимость за экран
-                media_cost += prices[city]['led_screen']
+        # LED экраны (Добавляем простую стоимость за экран)
+        for i in range(1, led_screens + 1):
+            size_key = states[f'led_size{i}'] # Используем существующие ключи
+            if answers.get(size_key): # Если размер был выбран, считаем стоимость
+                 media_cost += prices[city]['led_screen']
 
         cost['3. Изготовление стенда и прокатное оборудование']['3.6 Мультимедиа'] = media_cost
 
@@ -971,6 +1015,7 @@ def calculate_cost_in_thread(chat_id):
         # --- 4. Монтаж, транспорт, демонтаж ---
         mount_cost = 3000 * area  # упрощенный расчет монтажа
         transport_cost = prices[city]['transport']
+        # Учитываем только area, как в оригинальном коде
         cost['4. Монтажные работы, транспортные расходы, демонтаж'] = mount_cost + transport_cost
 
         # --- Итоговый расчет ---
@@ -1012,7 +1057,6 @@ def calculate_cost_in_thread(chat_id):
 
     except Exception as e:
         # Дополнительное логирование для отладки, если ошибка останется
-        import traceback
         print(f"❌ Критическая ошибка в calculate_cost_in_thread для chat_id {chat_id}: {e}")
         print(f"Трассировка: {traceback.format_exc()}")
         bot.send_message(chat_id, "❌ Произошла критическая ошибка при расчёте. Попробуйте снова.")
@@ -1136,19 +1180,28 @@ def handle_admin_all_sessions(call):
             bot.answer_callback_query(call.id)
             return
 
-        for session in all_sessions.values():
+        # Создаем список для сортировки
+        sessions_list = sorted(all_sessions.values(), key=lambda x: x['created_at'], reverse=True)
+
+        for session in sessions_list:
             status = "🟢" if session['finished'] else "🟡"
             submitted = " ✅" if session.get('submitted', False) else ""
-            total = f" 💰 {session.get('total', '—'):,} руб." if session.get('total') else ""
+            total = session.get('total')
+            total_display = f" 💰 {total:,.0f} руб." if total is not None and isinstance(total, (int, float)) else " 💰 —"
             city = session['answers'].get(states['city'], '—')
             area = session['answers'].get(states['area'], '—')
 
-            user_info = bot.get_chat(session['user_chat_id'])
-            user_name = user_info.username or user_info.first_name or "Пользователь"
+            # Для получения user_info нужно сделать запрос к API, что может быть медленным.
+            # Если это не критично для админки, можно оставить, но лучше хранить user_name в сессии.
+            try:
+                user_info = bot.get_chat(session['user_chat_id'])
+                user_name = user_info.username or user_info.first_name or "Пользователь"
+                user_display = f'@{user_name}' if user_info.username else user_name
+            except Exception:
+                user_display = "Неизвестный пользователь"
 
-            user_display = f'@{user_name}' if user_info.username else user_name
 
-            button_text = f"{status} {user_display} | {city}, {area}м²{total}{submitted}"
+            button_text = f"{status} {user_display} | {city}, {area}м²{total_display}{submitted}"
 
             markup.add(
                 types.InlineKeyboardButton(
@@ -1185,9 +1238,12 @@ def handle_admin_view_session(call):
 
         details = f"🔍 <b>Детали расчёта #{session_id[:8]}</b>\n"
 
-        user_info = bot.get_chat(session['user_chat_id'])
-        user_name = user_info.username or user_info.first_name or "Пользователь"
-        user_display = f'@{user_name}' if user_info.username else user_name
+        try:
+            user_info = bot.get_chat(session['user_chat_id'])
+            user_name = user_info.username or user_info.first_name or "Пользователь"
+            user_display = f'@{user_name}' if user_info.username else user_name
+        except Exception:
+            user_display = "Неизвестный пользователь"
 
         details += f"👤 Пользователь: {user_display}\n"
         details += f"🆔 ID пользователя: {session['user_chat_id']}\n"
@@ -1268,7 +1324,7 @@ def handle_view_user_session(call):
             details += f"💰 Общая стоимость: {total:,.0f} руб.\n"
 
             markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton(text='⬅ Назад к списку', callback_data='Показать предыдущие расчеты'))
+            # Убрана кнопка "Показать предыдущие расчеты", так как ее callback-обработчик не предоставлен
             if not session.get('submitted', False):
                 markup.add(
                     types.InlineKeyboardButton(text='📤 Оставить заявку', callback_data=f'submit_session_{session_id}'))
@@ -1278,7 +1334,7 @@ def handle_view_user_session(call):
         else:
             details += "💰 Общая стоимость: Расчёт не завершён\n"
             markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton(text='⬅ Назад к списку', callback_data='Показать предыдущие расчеты'))
+            # Убрана кнопка "Показать предыдущие расчеты"
             markup.add(types.InlineKeyboardButton(text='🏠 Вернуться в меню', callback_data='back_to_menu'))
             bot.edit_message_text(chat_id=chat_id, message_id=call.message.message_id, text=details, parse_mode='HTML',
                                   reply_markup=markup)
