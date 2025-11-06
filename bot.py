@@ -1013,7 +1013,7 @@ def calculate_cost_in_thread(chat_id):
         cost['3. Изготовление стенда и прокатное оборудование']['3.8 Брендирование'] = branding_cost
 
         # --- 4. Монтаж, транспорт, демонтаж ---
-        mount_cost = 3000 * area  # упрощенный расчет монтажа
+        mount_cost = (3000 * area + 4500 * wall_area) * city_coef  # упрощенный расчет монтажа
         transport_cost = prices[city]['transport']
         # Учитываем только area, как в оригинальном коде
         cost['4. Монтажные работы, транспортные расходы, демонтаж'] = mount_cost + transport_cost
